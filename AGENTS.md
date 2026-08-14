@@ -19,12 +19,12 @@ No firmware or ZMK code lives here — it lives in the sub-repos below.
 
 | Repo | What it is |
 |---|---|
-| `trackpoint-knowledge` | **This repo** — memory system + scripts + opencode config |
-| `zmk-trackpoint-driver` | ZMK I2C driver `promini,trackpoint-i2c` (no PMW3610 remains) |
-| `zmk-trackpoint-shield` | corne_trackpoint shield (right half = trackpoint), GH Actions |
-| `zmk-config-dabaseV_0-2` | **ACTIVE** dabase_v2 shield config (right half = trackpoint) |
-| `promini-trackpoint` | Pro Mini firmware (PS2Trackpoint lib, i2c slave, diag sketches) |
-| `attiny85-trackpoint` | ATtiny85 sketches + self-contained libraries (ISP/serial guides in its README) |
+| [`trackpoint-knowledge`](https://github.com/Magid-William/trackpoint-knowledge) | **This repo** — memory system + scripts + opencode config |
+| [`zmk-trackpoint-driver`](https://github.com/Magid-William/zmk-trackpoint-driver) | ZMK I2C driver `promini,trackpoint-i2c` (no PMW3610 remains) |
+| [`zmk-trackpoint-shield`](https://github.com/Magid-William/zmk-trackpoint-shield) | corne_trackpoint shield (right half = trackpoint), GH Actions |
+| [`zmk-config-dabaseV_0-2`](https://github.com/Magid-William/zmk-config-dabaseV_0-2) | **ACTIVE** dabase_v2 shield config (right half = trackpoint) |
+| [`promini-trackpoint`](https://github.com/Magid-William/promini-trackpoint) | Pro Mini firmware (PS2Trackpoint lib, i2c slave, diag sketches) |
+| [`attiny85-trackpoint`](https://github.com/Magid-William/attiny85-trackpoint) | ATtiny85 sketches + self-contained libraries (ISP/serial guides in its README) |
 
 # CRITICAL: Every build must have USB logging
 
