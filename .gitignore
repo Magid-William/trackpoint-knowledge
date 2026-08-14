@@ -1,0 +1,20 @@
+# Sub-repos (each is its own git repo)
+attiny85-trackpoint/
+promini-trackpoint/
+zmk-config-dabaseV_0-2/
+zmk-trackpoint-driver/
+zmk-trackpoint-shield/
+
+# Local dev artifacts
+build/
+firmware/
+PCB/
+documenting/
+
+# Historical wiring doc — not part of the memory repo
+oldAGENTS.md
+
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
