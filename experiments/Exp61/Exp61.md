@@ -60,10 +60,19 @@ pio run   # in attiny85-trackpoint/attiny85-trackpoint-i2c-slave/
 ## Status
 
 - [x] Port + build + flash
-- [ ] Bench verify: swap the ATtiny85 onto the dabase_v2 right half I2C bus in
-  place of the Pro Mini (SDA/SCL/GND, 4.7k pull-ups). Expect `i2c scan` to show
-  `0x42`, cursor moving, and the curve feel to match Exp60 exactly — params land
-  automatically on first successful poll + every link-restore.
+- [x] Bench verify: swapped the ATtiny85 onto the dabase_v2 right half I2C bus in
+  place of the Pro Mini (SDA/SCL/GND, 4.7k pull-ups). `i2c scan` shows `0x42`,
+  cursor moves, curve feel matches Exp60 — params landed automatically on the
+  first successful poll + every link-restore.
+
+## Conclusion
+
+- [x] Success. The ATtiny85 is a true drop-in for the Pro Mini with the
+  PowerCurve: same `0x42` protocol, same curve feel (`speed-scale 128`,
+  `curve-rate 18`, `curve-exp 256`, `curve-start 77`), zero ZMK/driver changes —
+  the Exp60 param re-apply (first poll + link-restore) does all the work.
+- Next: with the curve proven on both AVRs, the obvious follow-up is the Exp64
+  MOT data-ready level ported to the ATtiny85 (already done — see Exp64).
 
 ## Notes / deferred
 

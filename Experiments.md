@@ -1,6 +1,5 @@
 | Experiment | Status | Hypothesis | Result |
 |------------|--------|------------|--------|
-| [Exp67](experiments/Exp67/Exp67.md) | In progress | Back on Pro Mini — reflash Exp60 firmware (CLK=D7, DAT=D3) + drop ATtiny MOT irq-gpios from config for 4-wire plain polling | Pro Mini flashed+verified via CH340G (sig 0x1e950f, 6500 B). Config `c10c20e` (Exp67) pushed, GH run `32251403482`. Pending ZMK build + bench verify. |
 | [Exp01](experiments/Exp01/Exp01.md) | Complete | ZMK shield with PMW3610 driver builds & flashes on NiceNano V2 | Success: builds, flashes headless, shell works, all devices READY |
 | [Exp02](experiments/Exp02/Exp02.md) | Failed | SPI handshake with Pro Mini PMW3610 emulator | AVR ISR timing: nRF52 SPIM byte gap too small; motion data corrupted by byte-shift. Fix must be on master side. |
 | [Exp03](experiments/Exp03/Exp03.md) | Failed | 1-byte shift compensation (AVR-only, no driver changes) | AVR SPDR is single-buffered for RX; received byte overwrites TX data at byte boundary. With zero inter-byte gap, next byte loads the received byte (0xFF) instead of burst data. Fix requires RP2040 or per-byte transactions (driver change). |
