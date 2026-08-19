@@ -46,14 +46,19 @@ ATtiny-era MOT `irq-gpios`) → cursor moves again on the Pro Mini.
 - NiceNano USB was unplugged for the rewiring — right-half uf2 staged, flash
   pending user reconnecting the keyboard.
 
+## Follow-up: pinpointing the fault
+
+- **Both** PS/2 pin configs on the i2c-slave gave zero burst: Exp60 `8e345cb`
+  (CLK=D7/DAT=D3) and swapped `8deb874` (CLK=D3/DAT=D7). `i2c scan` always found
+  0x42, so the Pro Mini + I2C + power were fine.
+- **Synthetic-rectangle test (Exp18 firmware `13d24fb`)** → **cursor moved.**
+  That proves the whole Pro Mini → I2C → driver → cursor pipeline + Exp67
+  config is good. Fault isolated 100% to the **trackpoint ↔ Pro Mini PS/2 link**
+  (power / RST float / connector / CLK-DAT continuity).
+
 ## Conclusion
 
 Pro Mini side done: flashed + verified (sig `0x1e950f`, 6500 B). ZMK config
-(Exp67) built clean with MOT irq-gpios removed → driver polls at 10 ms.
-
-**Pending:** NiceNano was unplugged for the rewiring ("main keyboard not
-connected"). Once reconnected:
-1. `.\flash-nicenano.ps1 -UF2Path "build\Exp67\firmware\dabase_v2_right-promini-i2c.uf2" -ComPort COM<X>`
-   (probe all COMs for `uart:~$` first).
-2. Shell: `i2c scan i2c@40003000` → expect `0x42`.
-3. `.\live-trackpoint.ps1 -Port COM<X> -Burst` or just touch the nub → cursor moves.
+(Exp67) built clean with MOT irq-gpios removed → driver polls at 10 ms, and the
+pipeline is verified moving (synthetic). Remaining: fix the physical trackpoint
+PS/2 wiring, reflash the Pro Mini back to the real i2c-slave firmware, retest.
