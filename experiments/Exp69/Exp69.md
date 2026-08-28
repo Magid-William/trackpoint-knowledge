@@ -63,6 +63,25 @@ Internal pull-ups come from the Exp68 fork patch (`ps2_gpio.c`).
   CENTRAL by default; only the explicit `-DCONFIG_ZMK_SPLIT_ROLE_CENTRAL=n`
   cmake-arg makes it a peripheral.
 
+## Hardware bring-up on the production right half (COM7)
+
+- Flashed `dabase_v2_right-standalone-usb.uf2` (run `33210214015`). Devices all
+  READY (`gpio_ps2`, `tpoint0`, `EXT_POWER`); USB HID mouse enumerates.
+- **No cursor.** P0.06/P0.08 idle HIGH (pull-ups) and **no clock activity during
+  nub motion** on either pin orientation.
+- **Swap attempted (`68779c2`, run `33211807668`):** CLK/DAT flipped to the stock
+  dabao map (CLK=P0.08, DAT=P0.06, i.e. justinmklam's pin assignments). Still no
+  cursor; one stray `d0` on DAT during motion but no clock observed.
+- **Sanity: flashed justinmklam's VERIFIED dabao config** (forked to
+  `Magid-William/zmk-config`, run `33212416418`, `dabao.uf2`). **No cursor
+  either.** → Software is ruled out; the trackpoint data/power is not reaching
+  the nice_nano's P0.06/P0.08. Suspect: TP VCC not connected / RST not floating /
+  DAT+CLK not actually landed on these pads / ATtiny daughterboard still loading
+  the lines. (Note: dabao firmware does NOT enable P0.13 EXT_VCC — if the TP is
+  powered from that rail, it stays off under justinmklam's firmware, but our
+  Exp69 builds DO enable it, so power-via-EXT_VCC alone doesn't explain both
+  failures.)
+
 ## Conclusion
 
 <empty — fill after hardware test>
