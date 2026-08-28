@@ -18,3 +18,8 @@ oldAGENTS.md
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# local experiment clones (separate repos)
+kb_zmk_ps2_mouse_trackpoint_driver/
+zmk-config-justinmklam/
+zmk-config-ps2-test/
