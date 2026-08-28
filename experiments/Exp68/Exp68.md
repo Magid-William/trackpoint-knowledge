@@ -50,9 +50,16 @@ still streams, the nRF decodes it directly, and the cursor moves with **no AVR c
 - [x] Driver fork + `NO_HOST_COMMANDS` mode (commit `4f23ac0`, branch `Exp68`)
 - [x] Config repo scaffolded + pushed (commit `998e84d`, branch `Exp68`) — build run
       `33190992394`
-- [ ] Build green
-- [ ] Flashed on bench nice_nano (COM8)
-- [ ] DBG logs: packet decodes present, zero command sends
+- [x] Build green (run `33192199380`, commit `37e78b1`) — both `ps2test_right` +
+      `settings_reset`; Kconfig step confirms `PS2_UART`, `PS2_LOG_LEVEL_DBG`,
+      `ZMK_INPUT_MOUSE_PS2_NO_HOST_COMMANDS=y` compiled in
+- [x] Flashed on bench nice_nano (COM8) — `ps2test_right-nice_nano.uf2` (643,584 B),
+       boot banner shows build `10ba6d0cb38b`
+- [~] USB log silent on console — the known Exp47/56 quirk; shell on COM8 is alive
+      (`kernel version` → Zephyr 4.1.0). Kconfig step used for verification instead.
+- [ ] Physical wiring: TP DAT→P0.06, CLK→P0.08, RST float, VCC 3.3V rail
+      (needs user at the bench — ATtiny/ProMini disconnected from the TP)
+- [ ] DBG logs: packet decodes present, zero command sends (if the log quirk allows)
 - [ ] Cursor moves when touching the nub (no coprocessor)
 - [ ] Left/Middle/Right buttons click
 - [ ] No 0xFE resend spam, no drift
@@ -61,7 +68,9 @@ still streams, the nRF decodes it directly, and the cursor moves with **no AVR c
 
 - ZMK: `ac7f75b8`
 - Driver fork (Exp68): `4f23ac0`
-- Config (Exp68): `998e84d`
+- Config (Exp68): `37e78b1` — build run `33192199380`
+  (hits along the way: west project must match repo name — schema rejects `repo-name`;
+  board target is plain `nice_nano`, not `nice_nano//zmk`, at ac7f75b8)
 
 ## Conclusion
 
