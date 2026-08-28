@@ -25,15 +25,33 @@ still streams, the nRF decodes it directly, and the cursor moves with **no AVR c
    (see findings) — the final build uses the **`gpio-ps2` backend** (CLK-falling-edge
    interrupt sampling = the same mechanism as the AVR decoder this project was built on).
 
+## Conclusion
+
+**Exp68: SUCCESS.** The badjeff PS/2 driver, modified to never send a single host
+command (`ZMK_INPUT_MOUSE_PS2_NO_HOST_COMMANDS`), decodes the weird generic USB
+trackpoint **directly on the nice_nano** — no ATtiny, no Pro Mini, no I2C bridge —
+with a smooth, user-confirmed "Perfect" 4-directional cursor.
+
+The critical discovery: the **`gpio-ps2` backend** (CLK-falling-edge sampling)
+is mandatory for this trackpoint. The UART-trick backend — the entire reason the
+driver exists — fundamentally can't handle it: the TP's RC clock jitters, so
+fixed-rate UART sampling produces full-scale decode glitch bursts no filter can
+fully remove. Edge-sampling is immune, which is why the AVR era was smooth for
+months and why this works now.
+
+Secondary lessons: PS/2 lines need pull-ups on both CLK and DAT (neither backend
+applies DT pull flags — patched in the fork); the P0.13 rail needs EXT_POWER; and
+the bench wiring is physically reversed vs the stock dabao map (DAT on P0.08).
+
 ## Final state
 
 - TrackPoint **DAT → P0.08 (pro_micro 0)**, **CLK → P0.06 (pro_micro 1)**,
   **RST float**, VCC 3.3 V rail via EXT_POWER (P0.13). Internal pull-ups on both lines
   (patched in `ps2_gpio.c` — it zeroes DT flags and reconfigures pins itself).
   NOTE: this is REVERSED vs stock dabao; the bench wiring proved the physical truth.
-- Config: `gpio-ps2` backend, `MY_NO_HOST_COMMANDS=y`, X/Y decoded as **int8** (this TP's
-  status byte was garbled over UART; with gpio-ps2 the decode is clean anyway),
-  `SPEED_DIVISOR=5` (remainder-accumulated, user's ~x5-of-1% ask), clicks disabled,
+- Config: `gpio-ps2` backend, `ZMK_INPUT_MOUSE_PS2_NO_HOST_COMMANDS=y`, X/Y decoded as
+  **int8** (this TP's status byte was garbled over UART; with gpio-ps2 the decode is
+  clean anyway), `SPEED_DIVISOR=1` (raw = user's "Perfect" speed), clicks disabled,
   error mitigation OFF, ZMK_EXT_POWER=y, shell + USB logging (AGENTS.md rule).
 - Filters (median-5/slew/EMA) were added for the UART decode and are **OFF** in the
   final config (they only add lag on the clean GPIO decode) — code stays Kconfig-gated.
