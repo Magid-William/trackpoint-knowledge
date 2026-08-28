@@ -54,12 +54,12 @@ Order flashed & result:
 CLK/DAT (P0.06/0.08) idle high, P0.13 LOW on both. P0.13/EXT rail was a red herring,
 not the discriminator.
 
-## Diagnosis (active)
+## Diagnosis (resolved)
 
-The only broken variant is the **standalone-central** path — `trackball_listener`
+The only broken variant was the **standalone-central** path — `trackball_listener`
 `status="okay"` on `&tpoint0` when `CONFIG_ZMK_SPLIT_ROLE_CENTRAL` defaults y. The
-peripheral split→forward path (what the dongle uses) provably works. Root-cause
-hypotheses for the central-listener path:
+peripheral split→forward path (what the dongle uses) worked, so this didn't block
+the experiment. Root-cause candidates for the central-listener path (unresolved):
 
 - The `#ifdef CONFIG_ZMK_SPLIT_ROLE_CENTRAL` branch may not be enabling the listener
   the way the promini-era (proven) config did — compare with the old
@@ -71,15 +71,51 @@ hypotheses for the central-listener path:
   old config did: listener device = `<&trackball_split>` by default, overridden to
   `<&trackball>` under central).
 
-## Next steps
+## Result: SUCCESS — cursor moves with direct PS/2 on the dabase right half, no coprocessor
 
-1. Fix the standalone-central variant so it moves too (nice-to-have; see diagnosis).
-   OR treat dongle as the primary success path (peripheral build already proven).
-2. **Dongle topology:** flash `dabase_v2_right-ps2-direct` (right, already proven),
-   `dabase_v2_left` (left), `dabase_v2_dongle-usb-log` (XIAO, COM21 shell,
-   `XIAO-SENSE` drive). Pair; keys first, then nub-move via question tool
-   (ready/not ready).
-3. Log known-good SHAs + run IDs in the conclusion.
+User-confirmed via question tool ("ready - cursor moved"). The working build is the
+**BLE peripheral** `dabase_v2_right-ps2-direct` — the same role the dongle uses —
+and it moves the cursor plugged into USB on COM7, exactly like the promini-era
+verification method (`dabase_v2_right-promini-i2c` flashed on USB). The
+`trackball_split → tpoint0` forwarding path is proven live.
+
+## Conclusion
+
+**Exp69: SUCCESS.** The Exp68 direct-PS/2 stack ports cleanly into the production
+dabase right half: `gpio-ps2` backend + `NO_HOST_COMMANDS` + int8 decode, wired
+DAT→P0.08 / CLK→P0.06 (bench-reversed pin map), EXT_POWER P0.13 rail, cursor-only
+keymap (temp_layer / scroll / volume stripped). No ATtiny, no Pro Mini, no I2C.
+
+Key findings:
+1. **Wiring and dtsi are proven correct.** Exp68 known-good FW moves the cursor on
+   this exact board; the dabase `dabase-v2-right-ps2.dtsi` is byte-identical.
+2. **The peripheral-role build works; the standalone-central build does not.** The
+   broken path is `trackball_listener` enabled on `&tpoint0` when
+   `CONFIG_ZMK_SPLIT_ROLE_CENTRAL=y` (standalone USB build). The peripheral split
+   path (`trackball_split { device = <&tpoint0> }`) works. Since dongle mode =
+   peripheral + central, this is non-blocking for Exp69's goal.
+3. P0.13 EXT-rail sampling was a red herring — reads LOW on the working build too.
+
+## Known-good
+
+- Config: `Magid-William/zmk-config-dabaseV_0-2` branch `Exp69` @ `96d7d01`
+  (commits `b38e1ea` port → `7d76b6f` plain board targets → `96d7d01` workflow @v0.3).
+- GH run `33219195923` — all 8 builds pass.
+- Flashed + user-confirmed: `dabase_v2_right-ps2-direct.uf2` (610304 B) on COM7.
+- Dongle flashed: `dabase_v2_dongle-usb-log.uf2` on XIAO (COM21 shell).
+- ZMK `ac7f75b8`, driver fork `zmk-ps2-trackpoint-driver` @ `5ef6699`.
+
+## Remaining / next experiments
+
+- **Standalone-central right build doesn't move cursor** — root-cause the
+  `trackball_listener`-on-`tpoint0` path under role central (compare with the old
+  promini overlay's listener wiring / `CONFIG_ZMK_USB`). Low priority for dongle
+  use; matters only for "laptop with one half".
+- **Full dongle BLE test** — right (peripheral) ↔ XIAO dongle (central) over BLE,
+  left half for keys sanity; confirm cursor over the dongle's USB HID, then
+  re-introduce temp_layer / scroll on the proven stack.
+- Document in AGENTS.md: the gpio-ps2-vs-uart-ps2 decision + peripheral-vs-
+  standalone-central split-listener wiring (Exp68 exp suggested this).
 
 ## COM map
 
