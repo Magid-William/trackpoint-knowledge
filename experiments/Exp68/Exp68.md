@@ -63,9 +63,11 @@ still streams, the nRF decodes it directly, and the cursor moves with **no AVR c
 ## Known-good revisions
 
 - ZMK: `ac7f75b8`
-- Driver fork (Exp68): `5ef6699` (final; +0 optional filter commits)
-- Config (Exp68): `6191daf` — build run `33205648849` final
+- Driver fork (Exp68): `5ef6699` (final; all filter options Kconfig-gated, off)
+- Config (Exp68): `fb9e917` — build run `33206064201`, speed divisor 1 (raw)
 - Firmware flashed on bench nice_nano (COM8): `ps2test_right-nice_nano.uf2`
+- User-confirmed: **smooth, 4 directions, speed "Perfect"** (x5 of the
+  middle build = raw stream, as close to their x6 ask as integers allow)
 
 ## Files changed (fork delta vs upstream JSON)
 
