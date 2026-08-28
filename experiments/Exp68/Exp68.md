@@ -8,70 +8,76 @@ rejects all host commands (Exp06). badjeff's `kb_zmk_ps2_mouse_trackpoint_driver
 dabao keyboard. If we strip **every** host→device command from that driver, the trackpoint
 still streams, the nRF decodes it directly, and the cursor moves with **no AVR coprocessor**.
 
-## Plan
+## Result: SUCCESS — cursor moves smoothly, 4 directions, zero host commands, no coprocessor.
 
-1. Fork driver `badjeff/kb_zmk_ps2_mouse_trackpoint_driver` @ `2df4d6d`
-   (the exact SHA justinmklam's verified combo pins; diff to current main is only an
-   unrelated `rst-gpios` rename) → `Magid-William/zmk-ps2-trackpoint-driver`, branch `Exp68`.
-2. Add `ZMK_INPUT_MOUSE_PS2_NO_HOST_COMMANDS` (default n):
-   - `input_mouse_ps2.c`: init thread skips self-test/reset/detect/config handshake —
-     waits 1500 ms for the power-up stream, then enables the data callback **without**
-     the 0xF4 write; misalignment "resend" (0xFE) becomes packet-buffer reset only;
-     enable/disable reporting never write.
-   - `ps2_uart.c`: `ps2_write()` refuses all writes (-ENOTSUP) — belt and braces.
-3. New config repo `Magid-William/zmk-config-ps2-test` (unified template layout), branch
-   `Exp68`:
-   - ZMK pinned `ac7f75b8` (justinmklam's verified revision)
-   - shield `ps2test_right` (bench 4x6 matrix = corne_trackpoint right wiring):
-     - `ps2test_trackpoint.dtsi` — justinmklam's dabao_trackpoint.dtsi verbatim
-       (pins/uart0 pinctrl/priorities/9600) + `bias-pull-up` on the UART RX pin
-       (nRF UART RX has no internal pull; Exp06 proved a weak pull suffices — no
-       external resistors)
-     - no tp-* / sampling-rate / scroll-mode props, no rst-gpios, buttons enabled
-     - standard `zmk,input-listener` → `&tpoint0` (no input processors for bring-up;
-       temp_layer/axis transforms later)
-     - `.conf`: PS2 + UART_INTERRUPT_DRIVEN + ZMK_POINTING/MOUSE + NEWLIB (their
-       picolibc fix) + shell/logging rule + DBG levels + `NO_HOST_COMMANDS=y`
-     - `snippet: zmk-usb-logging` + settings_reset build (AGENTS.md rule)
-4. Hardware (bench rig): TP DAT→P0.06, CLK→P0.08, RST float, VCC 3.3 V rail.
-5. Build via GH Actions; flash bench nice_nano (COM8); verify via shell/DBG logs.
+## Plan + journey
 
-## Wiring
+1. **Fork** `badjeff/kb_zmk_ps2_mouse_trackpoint_driver` @ `2df4d6d` (exactly what
+   justinmklam's verified combo pins) → `Magid-William/zmk-ps2-trackpoint-driver`,
+   branch `Exp68`.
+2. **`ZMK_INPUT_MOUSE_PS2_NO_HOST_COMMANDS`** (default n): init thread skips self-test/
+   reset/detect/config handshake (waits 1.5 s for the power-up stream, enables callback
+   without the 0xF4 write); resend (0xFE) and reporting (0xF4/0xF5) become no-ops;
+   `ps2_write()` itself refuses everything (-ENOTSUP).
+3. **Config repo** `Magid-William/zmk-config-ps2-test`, branch `Exp68`, ZMK pinned
+   `ac7f75b8`, shield `ps2test_right` (bench 4x6 matrix = corne_trackpoint right wiring).
+4. **Backend conclusion**: the `uart-ps2` trick NEVER worked cleanly on THIS trackpoint
+   (see findings) — the final build uses the **`gpio-ps2` backend** (CLK-falling-edge
+   interrupt sampling = the same mechanism as the AVR decoder this project was built on).
 
-| TrackPoint | NiceNano v2 (pro_micro map @ ac7f75b8) |
-|---|---|
-| DAT | P0.06 (pro_micro 1) — UART RX, internal pull-up |
-| CLK | P0.08 (pro_micro 0) |
-| RST | float |
-| VCC/GND | 3.3 V rail / GND |
+## Final state
 
-## Status
+- TrackPoint **DAT → P0.08 (pro_micro 0)**, **CLK → P0.06 (pro_micro 1)**,
+  **RST float**, VCC 3.3 V rail via EXT_POWER (P0.13). Internal pull-ups on both lines
+  (patched in `ps2_gpio.c` — it zeroes DT flags and reconfigures pins itself).
+  NOTE: this is REVERSED vs stock dabao; the bench wiring proved the physical truth.
+- Config: `gpio-ps2` backend, `MY_NO_HOST_COMMANDS=y`, X/Y decoded as **int8** (this TP's
+  status byte was garbled over UART; with gpio-ps2 the decode is clean anyway),
+  `SPEED_DIVISOR=5` (remainder-accumulated, user's ~x5-of-1% ask), clicks disabled,
+  error mitigation OFF, ZMK_EXT_POWER=y, shell + USB logging (AGENTS.md rule).
+- Filters (median-5/slew/EMA) were added for the UART decode and are **OFF** in the
+  final config (they only add lag on the clean GPIO decode) — code stays Kconfig-gated.
 
-- [x] Driver fork + `NO_HOST_COMMANDS` mode (commit `4f23ac0`, branch `Exp68`)
-- [x] Config repo scaffolded + pushed (commit `998e84d`, branch `Exp68`) — build run
-      `33190992394`
-- [x] Build green (run `33192199380`, commit `37e78b1`) — both `ps2test_right` +
-      `settings_reset`; Kconfig step confirms `PS2_UART`, `PS2_LOG_LEVEL_DBG`,
-      `ZMK_INPUT_MOUSE_PS2_NO_HOST_COMMANDS=y` compiled in
-- [x] Flashed on bench nice_nano (COM8) — `ps2test_right-nice_nano.uf2` (643,584 B),
-       boot banner shows build `10ba6d0cb38b`
-- [~] USB log silent on console — the known Exp47/56 quirk; shell on COM8 is alive
-      (`kernel version` → Zephyr 4.1.0). Kconfig step used for verification instead.
-- [ ] Physical wiring: TP DAT→P0.06, CLK→P0.08, RST float, VCC 3.3V rail
-      (needs user at the bench — ATtiny/ProMini disconnected from the TP)
-- [ ] DBG logs: packet decodes present, zero command sends (if the log quirk allows)
-- [ ] Cursor moves when touching the nub (no coprocessor)
-- [ ] Left/Middle/Right buttons click
-- [ ] No 0xFE resend spam, no drift
+## Findings (the long road)
 
-## Known-good revisions (fill in)
+1. **Wiring**: only RX-on-P0.08 ever received frames; P0.06 never does. First no-data
+   builds were due to missing `CONFIG_ZMK_EXT_POWER` (P0.13 rail off) + no CLK pull-up.
+   Verify by P-number, not silkscreen.
+2. **`uart-ps2` @ 9600**: phase-walk alphabet {8C, CC, C4, 84, 80, BE, BD, BF, FA, F6...},
+   every byte ≥ 0x80 → "up/left only" (status sign bits garbage).
+3. **`uart-ps2` @ 14400** (9600×1.5 = measured cell rate): real 4-directional decode but
+   ~50/50 erratic — one byte per packet randomly reads full-scale (±127/-128/-64) in
+   bursts of 2-3 packets. Root cause: **this trackpoint's clock jitters** (cheap RC
+   oscillator); fixed-rate UART sampling straddles bit boundaries. Filters (median-3,
+   EMA-8, median-5+slew) improved but never fixed it.
+4. **`gpio-ps2`**: samples DAT on real CLK falling edges → jitter-immune → **smooth**.
+   This is the backend to use for jittery-clock trackpoints; the UART trick's README
+   caveat ("needs a compatible clock") is exactly what it means.
+5. USB-serial log output stays silent on this build (known Exp47/56 quirk); `printk` diag
+   worked for bring-up and was removed (flood + console interference).
+6. Build-ops: west.yml `revision` must be the repo's own name (schema rejects
+   `repo-name`); board target is plain `nice_nano` (not `//zmk`) at ac7f75b8; DTS
+   comments must use `//`, not `#` (preprocessor directive!); a PowerShell prefix-replace
+   concatenated a SHA once — set full SHAs.
+
+## Known-good revisions
 
 - ZMK: `ac7f75b8`
-- Driver fork (Exp68): `4f23ac0`
-- Config (Exp68): `37e78b1` — build run `33192199380`
-  (hits along the way: west project must match repo name — schema rejects `repo-name`;
-  board target is plain `nice_nano`, not `nice_nano//zmk`, at ac7f75b8)
+- Driver fork (Exp68): `5ef6699` (final; +0 optional filter commits)
+- Config (Exp68): `6191daf` — build run `33205648849` final
+- Firmware flashed on bench nice_nano (COM8): `ps2test_right-nice_nano.uf2`
 
-## Conclusion
+## Files changed (fork delta vs upstream JSON)
 
-TBD — fill in after bench verification.
+- `src/drivers/input/Kconfig`: NO_HOST_COMMANDS, SPEED_DIVISOR, MOVEMENT_EMA_N, MEDIAN_WINDOW, SLEW_MAX
+- `src/drivers/input/input_mouse_ps2.c`: gated init thread, write-free reporting/resend,
+  int8 X/Y decode, divisor/EMA/median/slew plumbing
+- `src/drivers/ps2/ps2_uart.c`: write → -ENOTSUP; SCL pull-up during receive
+- `src/drivers/ps2/ps2_gpio.c`: SCL+SDA pull-ups in pin config
+
+## Next experiments (suggestions)
+
+- Port to dabase_v2 right (production): TP direct to those freed P0.06/P0.08 on the
+  keyboard PCB; power-gating the TP (P0.13) for sleep; layer-toggle via `temp_layer`.
+- Optional: upstream `.dtsi`-level pull-up flags so no fork patch is needed.
+- Worth documenting in AGENTS.md: the gpio-ps2-vs-uart-ps2 decision for this TP.
