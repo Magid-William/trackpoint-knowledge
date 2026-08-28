@@ -44,7 +44,24 @@ Internal pull-ups come from the Exp68 fork patch (`ps2_gpio.c`).
 ## Build / verification log
 
 - Committed `6caa3db`, pushed `Exp69` → GH Actions run `33209473730`.
-- Awaiting build + flash.
+- **Run 1 FAILED (peripheral build only):** ZMK static assert in `input_split.c`
+  — *"Peripheral input splits need an `input` property set"*. Root cause: the
+  dabase shield `Kconfig.defconfig` defaults `ZMK_SPLIT_ROLE_CENTRAL=y` for the
+  right shield, and my 3-way `#ifdef/#elif defined(CONFIG_ZMK_SPLIT)/#else`
+  rewrite fell through to the wrong branch for the peripheral build
+  (`SPLIT_ROLE_CENTRAL=n` via cmake-arg), so the peripheral's `zmk,input-split`
+  node ended up enabled WITHOUT a `device` property.
+  **Standalone USB right build succeeded** (role defaults centrally) and all
+  other builds passed.
+- **Fix (`08313df`):** restored the proven 2-way structure —
+  `#ifdef CONFIG_ZMK_SPLIT_ROLE_CENTRAL` → local `trackball_listener` on
+  `&tpoint0` (covers standalone USB right, role defaults y);
+  `#else` → `trackball_split { device = <&tpoint0>; }` (peripheral, role forced n).
+  Rebuild: run `33210214015`.
+- Lesson: **do not re-architect working `#ifdef` split/role branches without
+  reading the shield `Kconfig.defconfig` role defaults.** The right shield is
+  CENTRAL by default; only the explicit `-DCONFIG_ZMK_SPLIT_ROLE_CENTRAL=n`
+  cmake-arg makes it a peripheral.
 
 ## Conclusion
 
