@@ -37,16 +37,48 @@ Config-only, on the Exp72 stack (`zmk-config-dabaseV_0-2`, branch `Exp73` off
   `flash-nicenano.ps1` COM21 + `XIAO-SENSE` drive; bootloader accepted, device
   back online on COM21. Right half untouched (Exp71 firmware, COM7).
 - Memo: COM21 = dongle shell, COM7 = right half, COM22 empty; COM3/4 = BT SPP.
+- **User-confirmed via question tool**: hold J + nub → smooth scroll, release
+  J → cursor back; hold K + nub → slow volume steps, cursor stays put; tap J/K
+  still type; touch-toggle MB1/2/3 and normal cursor all intact. Zero
+  regressions. `zip_scroll_scaler 1 2` and the Exp51 `tick 32` volume tuning
+  carried straight over — no retune needed.
 
-## Conclusion
+## Conclusion: SUCCESS
 
-(to be written after user verification.)
+Scroll-layer-toggle and volume-layer-toggle are live on the direct-PS2 dongle
+topology with the exact UX wanted (hold J = scroll, hold K = volume), config-only.
+
+Implementation lessons:
+
+- The whole feature installed **without any driver change** — layer-specific
+  input-processor overrides on the dongle `trackball_listener` (same machinery
+  as Exp72's temp_layer) handle everything. The `&lt 6 J` / `&lt 7 K`
+  behaviors run on the dongle layer stack (central = unified keymap), so the
+  overrides live on the dongle and the right half stays untouched.
+- Keep `process-next` on the scroll/volume overrides so the base
+  `tp_temp_layer` (touch-toggle) keeps running; keep `volume_move_zero`
+  (scaler 0 1) WITHOUT process-next so it eats the leftover REL events and the
+  cursor stays put on the volume layer (Exp51 rules hold).
+- The te9no keybind module at `main` builds fine against pinned ZMK
+  `ac7f75b8`; its inline node definition (not the module dtsi) is required.
+- Volume speed: Exp51's `tick 32` felt exactly right on the raw direct-PS2
+  stream too (≈3× slower than scroll). Scroll scaler `1 2` felt right on raw
+  deltas — no change from the old PowerCurve'd era needed in practice.
+
+## Known-good
+
+- Config `Magid-William/zmk-config-dabaseV_0-2` branch `Exp73` @ `df15282` (pushed).
+- GH run `33261650547`, all 8 builds green.
+- ZMK `ac7f75b8`, driver `5fbc21f` (Exp70) unchanged, keybind module `main`.
+- Dongle: `dabase_v2_dongle-usb-log.uf2` (764416 B), flashed headless via COM21/`XIAO-SENSE`.
 
 ## Next steps
 
-- If scroll feels hot (direct-PS2 raw deltas > old PowerCurve'd stream),
-  lower `zip_scroll_scaler` (`1 2` → `1 4`/`1 6`/`1 10`).
-- If volume direction/speed is off, flip the Y-invert in `volume_override` or
-  raise `tick`.
-- Optionally mirror the overrides on the right-half standalone listener
-  (standalone USB path; currently unresolved per Exp69, non-blocking).
+- If scroll ever feels hot on raw direct-PS2 deltas, lower `zip_scroll_scaler`
+  (`1 2` → `1 4`/`1 6`/`1 10`); volume speed knob is `tick` on
+  `keybind_volume`.
+- Optionally mirror the scroll/volume overrides on the right-half standalone
+  listener (standalone USB path; currently unresolved per Exp69, non-blocking
+  for the dongle topology).
+- Full origin/main parity achieved on the direct-PS2 dongle (layer-toggle +
+  scroll + volume).
