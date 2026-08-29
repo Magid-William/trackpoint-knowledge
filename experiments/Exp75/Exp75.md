@@ -76,15 +76,15 @@ Branch head `0d38078` pushed to `Magid-William/zmk-ps2-trackpoint-driver` `pr/op
 
 ## Verification (GH Actions)
 
-- **Features ON** — `zmk-config-ps2-test` `pr-verify` (west.yml → `68c0414`): run
+- **Features ON** — `zmk-config-ps2-test` `pr-verify` (west.yml → `b186d02`): run
   `33272161053` all green. Enables NO_HOST_COMMANDS, PS2_GPIO_NO_RESEND,
   INTERNAL_PULLUP, SCL_CYCLE_MAX=8000, CB_STACK=4096, POWER_CURVE, TELEMETRY + curve
   tuning props (128/18/256/77).
-- **Stock OFF** — `zmk-config-justinmklam` (fork) `pr-verify-stock` (west.yml → `68c0414`):
+- **Stock OFF** — `zmk-config-justinmklam` (fork) `pr-verify-stock` (west.yml → `b186d02`):
   run `33272166618` all green. Zero new options — regression check on the normal
   handshake path (rst-gpios, sampling-rate, scroll-mode).
 - The first stock attempt (`33272028706`, SHA `0d38078`) failed with `redefinition of
-  'err'` in `reporting_enable`/`disable` — see Result above; fixed at `68c0414`.
+  'err'` in `reporting_enable`/`disable` — see Result above; fixed at `b186d02`.
 
 ## Files changed (driver PR)
 
@@ -97,5 +97,5 @@ Branch head `0d38078` pushed to `Magid-William/zmk-ps2-trackpoint-driver` `pr/op
 - Optional hardware feel-test: flash `zmk-config-ps2-test` pr-verify `ps2test_right-nice_nano`
   artifact to the COM7 nice_nano, confirm cursor + PowerCurve feel on the bench.
 - When ready, open the PR from `Magid-William/zmk-ps2-trackpoint-driver`
-  `pr/optional-features` (`68c0414`) → `badjeff/kb_zmk_ps2_mouse_trackpoint_driver` main.
+  `pr/optional-features` (`b186d02`) → `badjeff/kb_zmk_ps2_mouse_trackpoint_driver` main.
 - Optional: template config repo if the README recipe proves insufficient.
