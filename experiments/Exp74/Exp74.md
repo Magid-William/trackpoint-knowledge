@@ -79,15 +79,36 @@ GH Actions config repo run `33266133984` (Exp74 branch) — see Findings.
 
 ## Findings
 
-(Fill in after flash + user test.)
-
-- Build: run `33266133984` result, artifact, size.
-- Feel vs coprocessor curve; tuning nudges applied.
-- Scroll/volume/toggler regressions (if any).
+- Build: GH run `33266133984`, **all 8 jobs green** (only Node.js-20 deprecation
+  annotations). Artifact `dabase_v2_right-ps2-direct.uf2` **629248 B**.
+- Flashed to the right half on **COM7** (user note: right side = COM7, dongle
+  = COM21/22) — `flash-nicenano.ps1` headless, bootloader accepted UF2, device
+  back online on COM7.
+- Verified live on the shell: boot log shows
+  `PowerCurve: sens=128 rate=18 exp=256 start=77 (Q8.8)` (curve ACTIVE);
+  `ps2_mouse @15851ms: bytes=936 pkts=312 align_abort=0 buf_to=0` (clean
+  decode, zero aborts); live packet stream `x=16 y=3`, `x=-10 y=-13` etc.
+- **User feel test: "Great — matches coprocessor era"** — slow nudges crawl,
+  flicks accelerate, no regressions reported. The Exp60/61 tuning transfers
+  1:1 to the on-device curve (as hoped — same formula, same units v=|(x,y)|).
+- Script gotcha: `flash-nicenano.ps1` uses `($size bytes)` string interpolation
+  that **Windows PowerShell 5.1** rejects at parse time. Run it under **pwsh 7**
+  (`& script.ps1`), not `powershell -File`.
 
 ## Conclusion
 
-(Pending user confirmation.)
+**Success.** Baking the RawAccel-style Power curve into the nice_nano (ZMK
+driver) is viable and matches the coprocessor-era feel with zero coprocessor
+and zero OS-level tooling. The `zmk,input-mouse-ps2` driver now carries the
+curve as Q8.8 DT props (`curve-sens/-rate/-exponent/-start`), applied
+per-sample before the divisor/report stage — topology-independent (peripheral,
+standalone central, and dongle all get it) and portable across hosts. The OS
+stays neutral (Windows speed 10), honoring the Exp67 lesson.
+
+Known-good:
+- zmk-ps2-trackpoint-driver fork `3aadda2` (Exp74 branch)
+- zmk-config-dabaseV_0-2 `5ef1d9b` (Exp74 branch; driver pinned `3aadda2`)
+- GH run `33266133984`, right-half uf2 `dabase_v2_right-ps2-direct.uf2`
 
 ## Next steps / decisions
 
