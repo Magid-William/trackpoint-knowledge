@@ -21,5 +21,6 @@ desktop.ini
 
 # local experiment clones (separate repos)
 kb_zmk_ps2_mouse_trackpoint_driver/
+kb_zmk_ps2_mouse_trackpoint_driver_pr/
 zmk-config-justinmklam/
 zmk-config-ps2-test/
