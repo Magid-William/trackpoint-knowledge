@@ -31,7 +31,12 @@ Config-only, on the Exp72 stack (`zmk-config-dabaseV_0-2`, branch `Exp73` off
 
 ## Findings
 
-(to be filled in as we go — build run, flash, user verification, tuning.)
+- Build run `33261650547`: **all 8 jobs green** (the te9no keybind module
+  `main` compiled fine against pinned ZMK `ac7f75b8`).
+- Flashed `dabase_v2_dongle-usb-log.uf2` (764416 B) headless via
+  `flash-nicenano.ps1` COM21 + `XIAO-SENSE` drive; bootloader accepted, device
+  back online on COM21. Right half untouched (Exp71 firmware, COM7).
+- Memo: COM21 = dongle shell, COM7 = right half, COM22 empty; COM3/4 = BT SPP.
 
 ## Conclusion
 
