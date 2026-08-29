@@ -68,6 +68,46 @@ Plan is config-only, on top of the known-good Exp71 stack:
 - DTS gotcha (Exp36): the `tp_temp_layer` node must live inside the `/ {}`
   root block of the overlay, not at bare top level.
 
+## Conclusion
+
+**Status: Success (Exp72).** The layer-toggle is back on the direct-PS2 dongle
+topology. Touching the nub activates `tp_layer` (keymap index 5) via the
+`zmk,input-processor-temp-layer` input processor on the dongle listener, giving
+MB1/MB2/MB3 on the right thumb cluster; the layer drops 500 ms after the last
+nub event. Config-only change on the known-good Exp71 stack — no driver,
+west.yml, right-half, or .conf modifications. User-confirmed, cursor behavior
+unchanged.
+
+### What worked
+
+- `temp_layer` input processor is core ZMK (pinned `ac7f75b8`) — no module or
+  driver work needed; the node gets picked up automatically when referenced.
+- The dongle listener is the right home for the toggle: the right half only
+  forwards (with the Exp71 swap), so the layer state change happens centrally
+  where the keymap is evaluated.
+- Layer index 5 (not 6 like origin/main): the direct-PS2 keymap has no
+  scroll/volume layers, so `tp_layer` slots right after `gaming`.
+
+### Pitfalls / notes
+
+1. **Layer index must match the keymap position** — `&tp_temp_layer 5 500`
+   refers to the `tp_layer` node in `config/dabase_v2.keymap` (after
+   `gaming`); origin/main used index 6 only because its keymap had
+   `scroll_layer`/`volume_layer` occupying 5 and 7.
+2. **DTS placement** (Exp36 repeat): `tp_temp_layer` must be inside the `/{}`
+   root block, not a bare top-level overlay node.
+3. **Dongle-only flash** — the right half was left on Exp71 firmware. The
+   keymap (`tp_layer`) is baked into every build, but the toggle logic only
+   lives on the dongle listener; the standalone-central listener path is still
+   unverified (broken in Exp69).
+
+### Next steps
+
+- Retune the idle timeout (500 ms → 1000–2000 ms) if the MB layer drops while
+  still aiming for a click.
+- Port scroll (hold J) and volume (hold K) onto the same dongle listener to
+  reach full origin/main parity on the direct-PS2 stack.
+
 ## Next experiments (suggestions)
 
 - If 500 ms feels too short (layer drops while still aiming), retune the
