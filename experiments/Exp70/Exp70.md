@@ -108,45 +108,75 @@ Two concrete fragilities in the driver fork `5ef6699`, both matching the symptom
   `PS2_GPIO_TIMING_SCL_CYCLE_MAX` 100→200µs (read timeout 200+50=250µs; still well
   inside the inter-byte gap). Target: clean decode, no abort noise.
 
+## Final root cause (it6 — the kill mechanism)
+
+**The crash was Zephyr's dedicated `input` thread defaulting to a 1024-byte stack.**
+`INPUT_MODE_THREAD` is the Zephyr default: every input event is processed by ONE global
+`input` thread, and the registered callbacks execute inside it. Our callback is the
+pointer pipeline: `input_process → (zmk,input-split) split_input_handler →
+zmk_split_peripheral_report_event → zmk_split_bt_report_input → bt_gatt_notify`
+(or listener → HID on non-split). Zephyr's own help text: the stack "must have enough
+space for executing the registered callbacks". A 1KB stack with that deep BT/HID chain
+**overflowed on the first pointer event** — silent, whole-half death, needs power cycle.
+This is why it happened in EVERY build and topology since Exp68 (even the plain
+USB-HID ps2-test standalone) and why it was 100% correlated with touching the nub
+(11+ min idle = fine; very first byte 0x8 arrives → death).
+
+Secondary/contributing defects fixed along the way:
+- `ps2_gpio_read_scl_timout` (150µs deadline) was scheduled on the **system workqueue**;
+  any load fired it late → mid-byte abort storm (`scl timeout at pos=4/5`). Moved to the
+  driver's own queue (`4d8fe3c`).
+- This TP's clock **pauses mid-byte** for hundreds of µs–ms (the AVR decoder needed a
+  ~7.5ms read-byte timeout, Exp58). Widened the cycle budget to 8ms (`5fbc21f`) → abort
+  storm gone.
+- The backend still wrote 0xFE resends to a command-rejecting TP — suppressed
+  (`PS2_GPIO_NO_RESEND`, F2).
+- ISR-context `printk` (console spinlock deadlock) — gated out.
+- `kernel thread stacks` (idle) showed `HID Over GATT Send Work` and `Low Priority Work
+  Queue` both **100% / 768**, `usbd_workq` 93% — output-side stacks raised.
+
 ## Conclusion
 
-Exp70 (it4+it4b): **the crash is diagnosed and fixed.** The whole-half freeze on TP touch
-was the gpio-ps2 read watchdog (`read_scl_timout`, 150µs) being scheduled on the **system
-workqueue** — a shared queue that this driver's own events busy up, firing late aborts
-mid-byte, snowballing into a workqueue wedge that takes keys + pointer down together.
-Compounding it: this TP's jittery clock is tighter than the 100µs cycle budget (fixed by
-widening to 200µs), and ISR-context console output could deadlock the logging builds
-(gated out).
-
-The earlier F1/F2 stack/no-resend work stays (harmless hardening + removes real hazards);
-it just wasn't the kill mechanism. Split/BLE/dongle are exonerated — the crash predates
-them (Exp68 ps2test standalone).
+**Exp70: SUCCESS (it6).** The right-half whole-system crash on trackpoint touch is fixed
+and **user-confirmed on the it6 ps2-direct build: "it's solid now, it didn't crash."**
+The killer was the 1KB Zephyr `input` thread overflowing inside the pointer-forward
+callback chain — now 4096 bytes (plus queue 16→64). Combined driver/config hardening:
+read watchdog off the system workqueue, 8ms clock tolerance, no-resend, ISR-safe logging,
+and the logged exhausted output-thread stacks (768s → 2048).
 
 ## Changes (final)
 
-- Driver `Magid-William/zmk-ps2-trackpoint-driver` branch `Exp70`:
+- Driver `Magid-William/zmk-ps2-trackpoint-driver` branch `Exp70` @ `5fbc21f`:
   - `d971d8d` F1/F2: cb-workqueue stack Kconfig (4096) + `PS2_GPIO_NO_RESEND`.
-  - `809cf98` interval accumulator per-axis reset fix.
-  - `ec806ae`→`ea1836e` it3 telemetry: counters + per-packet/abort lines via **printk**
-    (log framework proven dead on this build without a backend).
-  - `4d8fe3c` **it4**: read timeout → `ps2_gpio_work_queue`; ISR-safe abort logging.
-  - `cb4ab37` **it4b**: `PS2_GPIO_TIMING_SCL_CYCLE_MAX` 100→200µs.
-- Config `Magid-William/zmk-config-dabaseV_0-2` branch `Exp70` @ `6b59f6c`:
-  - `config/west.yml` → driver `cb4ab37`; `dabase_v2_right.conf`:
-    `LOG_BACKEND_UART=y`, `LOG_MODE_IMMEDIATE=y`, **no `LOG_PRINTK`**,
-    `PS2_GPIO_NO_RESEND=y`, `FAULT_DUMP=2`, `THREAD_ANALYZER`, `DEBUG_THREAD_INFO`,
-    `SYSTEM_WORKQUEUE_STACK_SIZE=4096`, `REPORT_INTERVAL_MIN=5`.
+  - `809cf98` report-interval accumulator per-axis reset.
+  - `ec806ae`→`ea1836e` it3 printk telemetry (counters, per-packet lines).
+  - `4d8fe3c` it4: read timeout off the system workqueue; ISR-safe abort logging.
+  - `5fbc21f` it4c: `PS2_GPIO_TIMING_SCL_CYCLE_MAX` → 8ms (this TP pauses mid-byte).
+- Config `Magid-William/zmk-config-dabaseV_0-2` branch `Exp70` @ `7e9d97b`:
+  - `config/west.yml` → driver `5fbc21f`.
+  - `config/dabase_v2_right.conf`:
+    - **`CONFIG_INPUT_THREAD_STACK_SIZE=4096` (THE fix) + `CONFIG_INPUT_QUEUE_MAX_MSGS=64`**
+    - `ZMK_LOW_PRIORITY_THREAD_STACK_SIZE=2048`, `ZMK_BLE_THREAD_STACK_SIZE=2048`
+    - `LOG_BACKEND_UART=y`, no `LOG_PRINTK`, deferred logging (no immediate-mode flood)
+    - `PS2_GPIO_NO_RESEND=y`, `FAULT_DUMP=2`, `THREAD_ANALYZER`, `DEBUG_THREAD_INFO`,
+      `SYSTEM_WORKQUEUE_STACK_SIZE=4096`, `REPORT_INTERVAL_MIN=5`
+  - `build.yaml`: ps2-direct cmake-args includes `ZMK_SPLIT_BLE_PERIPHERAL_STACK_SIZE=2048`.
 
-### Known-good (rolling)
+### Known-good (final)
 
-- ZMK `ac7f75b8`. Driver `cb4ab37` (it4b). Config `6b59f6c`. GH run `33255107906`.
-- Logging pipeline verified working (boot lines, DBG, telemetry, per-packet).
+- ZMK `ac7f75b8`. Driver `5fbc21f`. Config `7e9d97b`. GH run `33256681738` (8/8).
+- Flashed: `dabase_v2_right-ps2-direct.uf2` (612864 B) — **user-confirmed solid**.
 
 ## Next experiment
 
-- Confirm it4b: clean decode (abort spam gone) + long survivability, standalone first,
-  then **full dongle topology** (ps2-direct peripheral + XIAO dongle) — the original
-  production scenario.
-- Re-introduce production features (temp_layer, scroll, volume) on the proven stack.
-- AGENTS.md lesson: never schedule a µs-scale watchdog on the system workqueue from a
-  driver that generates work for that same queue; and the `LOG_PRINTK` silent-log trap.
+- **Full dongle topology soak** — ps2-direct right half + XIAO dongle + left half, pointer
+  + keys, extended session → the production scenario (it6 standalone/ps2-direct held, but
+  the dongle adds the split-forward + central side).
+- **Cleanup for production**: strip the per-packet `P`/`GA` printk telemetry (keep the 1s
+  counter line + LOG_* path), then re-introduce temp_layer/scroll/volume on the proven stack.
+- **AGENTS.md lessons to record**: (1) Zephyr input events run through the 1KB `input`
+  thread — a driver whose callbacks do BT/HID must raise `CONFIG_INPUT_THREAD_STACK_SIZE`;
+  (2) never schedule a µs-scale watchdog on the system workqueue from a driver that feeds
+  that same queue; (3) `LOG_PRINTK` reroutes printk into a dead log framework — the reason
+  "nothing ever logged" across the project; `LOG_BACKEND_UART` is required; (4) this TP's
+  clock pauses mid-byte — the decoder must tolerate ~8ms (AVR knew this, Exp58).
