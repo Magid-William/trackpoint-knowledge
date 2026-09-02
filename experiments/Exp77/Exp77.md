@@ -49,7 +49,9 @@ Known-good: driver `75d4d71`, config Exp77 `e104fa3`.
 
 ## Findings
 
-- Flash `dabase_v2_right-ps2-direct.uf2` (pending).
+- Flashed `dabase_v2_right-ps2-direct-exp77.uf2` (628736 B) headless via
+  COM22 (`flash-nicenano.ps1`, GPREGRET bootloader entry). Drive accepted the
+  copy, device back online.
 - User: jumps gone? genuine flicks still smooth? (threshold 100; tune
   `DELTA_MAX` in `dabase_v2_right.conf` — lower = more aggressive rejection,
   also more flick clipping).
