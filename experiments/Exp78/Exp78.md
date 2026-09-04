@@ -65,8 +65,57 @@ way to know is a clean build with every UART-era filter OFF.
 
 ## Findings
 
-(pending flash + test)
+### it1 — 19200 (run `33871885735`, flashed COM8): FAILED (decisive)
+- Boot log: `ps2_uart: Initializing ps2_uart driver with pins... SCL: P0.06; SDA: P0.08;
+  SDA Pinctrl: P0.08` + `UART device is ready` — backend @ 19200 init clean, no rewiring.
+- Every UART frame errors: repeat flood `0xfc/0xfe/0xf0/0x60/0xe0` tagged
+  `Framing error (4)` / `Parity error (2)` — ~0% clean frames.
+- Input: `bytes=1758 pkts=364 align_abort=804 buf_to=4` (~10s telemetry) — constant
+  alignment aborts; full-scale garbage (`mov_y=96 -> Mouse movement set to 127/-5`);
+  phantom MB1/MB2/MB3 (`Pressing button_m/r`, `Ignoring button presses...tranmission error`).
+- Root cause (physical): PS/2 bit cell ~69µs (14.4kHz) is LONGER than the 19200 UART
+  cell (52µs) → UART frame (520µs) ends mid-PS/2-byte, re-triggers on mid-byte LOWs →
+  multiple garbage frames per real byte. 19200 > cell rate = worse than 14400.
+- DBG flood saturated the CDC console as Exp70 warned; board stayed alive.
+
+### it2 — 14400 A/B (run `33872395685`, flashed COM8): SAME CLASS, LESS SEVERE
+- Same error flood (bytes `0x7f/0x78/0xe0/0xe1/0xe6/0xdf/0xbe/0xff...`), every byte
+  parity (2) or framing (4) flagged; constant `Bit 3 of packet is 0` / `Multiple button
+  presses` aborts.
+- Telemetry comparison (~10s):
+  - 19200: `bytes=1758 pkts=364 align_abort=804 buf_to=4` (~69% packets aborted)
+  - 14400: `bytes=1960 pkts=591 align_abort=722 buf_to=1` (~55% aborted)
+- So 14400 forms more packets but still a torrent of errors — this TP's RC clock drifts
+  against ANY fixed baud (Exp68's "real decode but 50/50 erratic" is the optimistic end
+  of the same spectrum; today's fork decodes it worse).
+- Filters OFF was the right A/B call; nothing at either rate decodes cleanly enough for
+  byte-level filters to rescue (Exp68: filters "improved but never fixed" 14400).
 
 ## Conclusion
 
-(pending)
+**FAILED (experiment complete).** The one previously-untried rate is now tested:
+uart-ps2 cannot decode this trackpoint at ANY baud:
+
+- 9600 (Exp68): phase-walk garbage.
+- 14400 (Exp68 + it2 A/B here): real-ish decode but torrent of parity/framing
+  errors (~55% packet aborts today, `bytes=1960 pkts=591 align_abort=722`);
+  Exp68's filters "improved but never fixed".
+- **19200 (it1): worst** — UART frame (520µs) is shorter than the PS/2 bit cell
+  (~69µs @14.4kHz), so the UART re-triggers mid-byte and produces multiple
+  garbage frames per real byte; ~0% clean frames.
+
+Root cause is structural, not fixable by suppressing/ignoring errors: this TP's
+RC clock drifts/jitters around ~14.4kHz, and the uart-ps2 trick REQUIRES a stable
+clock ≈ baud. The UART bytes are aliased (wrong), not merely flagged (right-but-
+errored), so no log-level or flag-suppression lever recovers them. Byte-level
+filters (median/slew/EMA) had nothing clean to average. Only CLK-edge sampling
+(the gpio-ps2 backend, + this experiment's DISABLED gpio fallback) handles this
+TP — Exp68's verdict stands, now with the missing 19200 data point added.
+
+Deliverables / close-out:
+- Exp78 config branch `zmk-config-ps2-test` @ `611dea9` (it2 14400) — kept for
+  rollback/re-run; the bench is restored to the known-good gpio-ps2 firmware
+  (`main` @ `e7635b5`, run `33278177086`, re-flashed to COM8).
+- Known-good baseline: `main` `e7635b5` (gpio-ps2), driver `b8a2200b`, ZMK `ac7f75b8`.
+- Lesson for the AGENTS.md uart-vs-gpio note: this TP has been tried at 9600 /
+  14400 / 19200 over UART — all fail; the uart-ps2 trick is unsuitable for it.
