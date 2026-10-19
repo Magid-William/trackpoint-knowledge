@@ -1,5 +1,11 @@
 # Exp78: uart-ps2 backend @ 19200 baud on the ps2test bench
 
+> **Name collision.** `zmk-config-dabaseV_0-2` has a branch also called
+> `Exp78` (Oct 12-14 2026, commits prefixed `Exp78:`) - that is a *different*
+> experiment about battery/sleep/logging, recorded as
+> [Exp79](../Exp79/Exp79.md). This file is the uart-ps2 one (Sep 4 2026);
+> its config lives on `zmk-config-ps2-test` branch `Exp78`.
+
 ## Context
 
 The direct-PS/2 stack (badjeff driver fork, `zmk-ps2-trackpoint-driver`)
