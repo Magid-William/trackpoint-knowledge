@@ -86,16 +86,30 @@ How to read it:
 Build clean. At flash time the only ZMK CDC devices on USB were COM22 (dongle,
 `snippet_studio_rpc_usb_uart` in `device list`) and COM38 (left half,
 `gpio_ads1220`); neither exposes `gpio_ps2`/`tpoint0`, so the right half was not
-connected. Flash pending: plug the right half in, or double-tap RESET to expose
-the `NICENANO` UF2 drive (the currently flashed Exp78 has no shell, so the
-headless GPREGRET entry is unavailable by design).
+connected then. The right half was flashed afterwards (Exp78 had no shell, so
+this build restores the headless GPREGRET path too).
+
+**User, initial test: "it's as if the packets didn't drop once."** No cursor
+jumps observed. That is the intended behavior: a lost byte is now a short hold,
+not a merge into the next packet. Long soak still running; the 1s `drops` /
+`resync` counters and per-drop WRN lines will tell whether drops still happen
+silently.
 
 ## Conclusion
 
-Pending.
+**Success (initial, user-confirmed).** The jump was the partial-packet merge,
+not a bad packet reaching the cursor. Notifying the assembler of a lost byte
+and holding until the packet phase is proven removes it: the user reports no
+drops/jumps in the initial test. The fix also makes the right half debuggable
+again (USB log + shell restored). Still open: whether drops are merely hidden
+by the hold or actually absent, and whether the hold is noticeable on a long
+soak.
 
 ## Next
 
+- Long soak: watch `ps2_mouse: drops` / `resync` and the `PS/2 read drop` WRN
+  lines. If drops happen but the cursor no longer jumps, the fix is doing its
+  job; if a jump returns, capture that moment and revisit.
 - If drops still move the cursor: inspect the `deliv`/`bytes`/`cb_lost` split
   and consider making the PS/2 callback work queue cooperative/higher
   priority.
