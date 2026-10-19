@@ -45,7 +45,10 @@ the right half's USB CDC log at 115200 → reproduce long enough to catch a drop
 - Config `Exp80` = `d412c18` (`Exp80: right-half USB logging, drop hold,
   driver 3ac4d1d`), pushed to
   `Magid-William/zmk-config-dabaseV_0-2`.
-- GH Actions run: pending.
+- GH Actions run `39329032792` — **success**, all builds green.
+  `dabase_v2_right-ps2-direct.uf2` = 637,440 B (old Exp78 build was 615 KB-class;
+  the extra size is the restored log/shell stack). Downloaded to
+  `build/firmware/dabase_v2_right-ps2-direct.uf2`.
 
 ## What to capture
 
@@ -80,7 +83,12 @@ How to read it:
 
 ## Findings
 
-Pending flash + user capture.
+Build clean. At flash time the only ZMK CDC devices on USB were COM22 (dongle,
+`snippet_studio_rpc_usb_uart` in `device list`) and COM38 (left half,
+`gpio_ads1220`); neither exposes `gpio_ps2`/`tpoint0`, so the right half was not
+connected. Flash pending: plug the right half in, or double-tap RESET to expose
+the `NICENANO` UF2 drive (the currently flashed Exp78 has no shell, so the
+headless GPREGRET entry is unavailable by design).
 
 ## Conclusion
 
