@@ -71,9 +71,26 @@ Two deliberate avoidances:
 
 ## Build
 
-Config repo run: see Findings. `dabase_v2_right-ps2-direct` keeps the
-`zmk-usb-logging` snippet for bring-up (state transitions are `LOG_INF`); strip
-it in a follow-up commit before the battery measurement.
+GH config run `40004581101` — **8/8 jobs green** (23 Oct 2026).
+`dabase_v2_right-ps2-direct.uf2` **638,976 B** (Exp80: 637,440 B, +1.5 KB),
+artifact in `zmk-config-dabaseV_0-2/build/Exp81-artifacts/`.
+
+Verified in the build's Kconfig:
+
+```
+CONFIG_ZMK_IDLE_TIMEOUT=60000
+CONFIG_ZMK_IDLE_SLEEP_TIMEOUT=3600000
+CONFIG_ZMK_PS2_TP_POWER_POLICY=y
+CONFIG_ZMK_PS2_TP_POWER_BOOT_MUTE_MS=800
+```
+
+Not flashed yet: no NiceNano on USB at build time (the only ZMK CDC present,
+COM22, is the XIAO dongle — it answers `bt`, not `gpio`). Flash the right half
+with `flash-nicenano.ps1` once it is plugged in.
+
+The `dabase_v2_right-ps2-direct` build keeps the `zmk-usb-logging` snippet for
+bring-up (state transitions are `LOG_INF`); strip it in a follow-up commit
+before the battery measurement.
 
 ## Bench checks
 
