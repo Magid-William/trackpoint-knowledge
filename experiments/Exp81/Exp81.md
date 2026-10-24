@@ -45,8 +45,15 @@ key / pointer / encoder ──► activity timer reset
 60 s with none of those ──► rail OFF, callback disarmed, assembler cleared,
                             CLK/DAT = GPIO_DISCONNECTED
 key press while off ──► rail ON, 800 ms mute, timer reset
+USB attached ──► rail ON and stays on (VBUS overrides the idle cut)
+USB removed ──► fall back to the activity state (immediate if already idle)
 1 h with no activity ──► System OFF (rail already low, pins already isolated)
 ```
+
+USB is detected with `zmk_usb_is_powered()` / `zmk_usb_conn_state_changed`
+(VBUS, not HID-ready — the peripheral build has no HID endpoint). ZMK's
+`activity.c` already refuses deep sleep on USB for the same reason, so the
+policy mirrors existing behaviour: unlimited power, no idle budget.
 
 Consequence by design: once the rail is off the trackpoint is blind, so the
 **next key** brings it back, not the nub. The first nudge after a long pause is
@@ -56,8 +63,8 @@ lost.
 
 | Repo | Change |
 |---|---|
-| `zmk-ps2-trackpoint-driver` (Exp81 `ddbe5bb`) | New `src/power/tp_power_policy.c`: `ZMK_LISTENER` on `zmk_activity_state_changed`, drives the `EXT_POWER` `control-gpios` directly, disconnects/restores CLK/DAT, arms/disarms the PS/2 callback, boot mute via `k_work_delayable`. New `zmk_mouse_ps2_power_suspend/resume()` clear the 3-byte assembler around a rail cycle. Kconfig `ZMK_PS2_TP_POWER_POLICY` + `ZMK_PS2_TP_POWER_BOOT_MUTE_MS`. |
-| `zmk-config-dabaseV_0-2` (Exp81 `ffa27e3`) | `dabase_v2_right.conf`: policy on, mute 800 ms. `build.yaml` right-half: `CONFIG_ZMK_IDLE_TIMEOUT=60000`, `CONFIG_ZMK_IDLE_SLEEP_TIMEOUT=3600000` (1 h). Left half untouched at 1.5 h — control. `west.yml` pins the driver to `ddbe5bb`. |
+| `zmk-ps2-trackpoint-driver` (Exp81 `797205a`) | New `src/power/tp_power_policy.c`: `ZMK_LISTENER` on `zmk_activity_state_changed` + `zmk_usb_conn_state_changed`, drives the `EXT_POWER` `control-gpios` directly, disconnects/restores CLK/DAT, arms/disarms the PS/2 callback, boot mute via `k_work_delayable`. New `zmk_mouse_ps2_power_suspend/resume()` clear the 3-byte assembler around a rail cycle. Kconfig `ZMK_PS2_TP_POWER_POLICY` + `ZMK_PS2_TP_POWER_BOOT_MUTE_MS`. |
+| `zmk-config-dabaseV_0-2` (Exp81 `6a7271d`) | `dabase_v2_right.conf`: policy on, mute 800 ms. `build.yaml` right-half: `CONFIG_ZMK_IDLE_TIMEOUT=60000`, `CONFIG_ZMK_IDLE_SLEEP_TIMEOUT=3600000` (1 h). Left half untouched at 1.5 h — control. `west.yml` pins the driver. |
 
 Two deliberate avoidances:
 
@@ -71,22 +78,27 @@ Two deliberate avoidances:
 
 ## Build
 
-GH config run `40004581101` — **8/8 jobs green** (23 Oct 2026).
-`dabase_v2_right-ps2-direct.uf2` **638,976 B** (Exp80: 637,440 B, +1.5 KB),
-artifact in `zmk-config-dabaseV_0-2/build/Exp81-artifacts/`.
+| Run | What | Result |
+|---|---|---|
+| `40004581101` | base policy (idle cut + pin isolation) | 8/8 green, 638,976 B, flashed, **user-confirmed** |
+| `40089304349` | + USB override, guard on `CONFIG_ZMK_USB` | 8/8 green but **byte-identical** UF2 (guard compiled out) |
+| `40089700537` | + USB override, guard on `CONFIG_USB_DEVICE_STACK` | 8/8 green, 638,976 B, different hash, **flashed** |
 
-Verified in the build's Kconfig:
+Verified in run 1's Kconfig:
 
 ```
 CONFIG_ZMK_IDLE_TIMEOUT=60000
 CONFIG_ZMK_IDLE_SLEEP_TIMEOUT=3600000
 CONFIG_ZMK_PS2_TP_POWER_POLICY=y
 CONFIG_ZMK_PS2_TP_POWER_BOOT_MUTE_MS=800
+CONFIG_USB_DEVICE_STACK=y
+# CONFIG_ZMK_USB is not set        <- split peripheral
 ```
 
-Not flashed yet: no NiceNano on USB at build time (the only ZMK CDC present,
-COM22, is the XIAO dongle — it answers `bt`, not `gpio`). Flash the right half
-with `flash-nicenano.ps1` once it is plugged in.
+The USB-override build was flashed at 24 Oct; the board was unplugged before
+the >60 s USB-idle check could be read back, so the override itself is
+**pending on-device confirmation** (expected: rail stays high while VBUS is
+present; unplug while idle -> rail off immediately).
 
 The `dabase_v2_right-ps2-direct` build keeps the `zmk-usb-logging` snippet for
 bring-up (state transitions are `LOG_INF`); strip it in a follow-up commit
@@ -98,7 +110,10 @@ before the battery measurement.
 2. Key press → rail back, pointer works within ~1 s, no jump/drift, no phantom
    clicks (watch the Exp80 decode logs for `drops`/resync).
 3. Deep sleep at 1 h: half unreachable, key wakes, pointer resumes.
-4. Long-run feel: is losing the first nudge after a pause acceptable at 60 s?
+4. USB override (second build): with VBUS present, > 60 s idle must **not** cut
+   the rail (`devmem 0x50000504` bit 13 stays set, no `TP power: off` line);
+   unplug while idle → rail off immediately.
+5. Long-run feel: is losing the first nudge after a pause acceptable at 60 s?
 
 ## Measurement
 
@@ -122,7 +137,20 @@ before the battery measurement.
 
 ## Findings
 
-(to fill after flash + on-device verification)
+- **Rail cut/restore works on hardware** (user, one day of use): DC voltage on
+  the rail drops at idle and returns on any key, pointer resumes, no jumps
+  reported.
+- **This trackpoint does not stream at idle.** With the rail on and the board
+  up for 80 s untouched, `ps2_gpio: int=0` / `bytes=0`, then a single edge
+  (`int=1 abort=1`). The earlier "CLK-edge ISR stream costs power" hypothesis is
+  dead: the awake cost is the powered module itself, not the interrupt rate.
+- **`CONFIG_ZMK_USB` is OFF on a split peripheral** (`depends on !ZMK_SPLIT ||
+  ZMK_SPLIT_ROLE_CENTRAL`). The first USB-override build was **byte-identical**
+  to the pre-USB build because the guard compiled the path out; caught by
+  comparing UF2 hashes. The VBUS state lives in `app/src/usb.c`, built under
+  `CONFIG_USB_DEVICE_STACK` (on, via the CDC console), so the guard must be
+  `CONFIG_USB_DEVICE_STACK`, not `CONFIG_ZMK_USB`.
+- Battery numbers not measured yet (logging snippet still on this build).
 
 ## Conclusion
 
