@@ -150,15 +150,45 @@ before the battery measurement.
   comparing UF2 hashes. The VBUS state lives in `app/src/usb.c`, built under
   `CONFIG_USB_DEVICE_STACK` (on, via the CDC console), so the guard must be
   `CONFIG_USB_DEVICE_STACK`, not `CONFIG_ZMK_USB`.
+- **USB override confirmed** (user, with and without the cable): rail stays on
+  while VBUS is present, unplug falls back to the activity state, replug brings
+  it back.
 - Battery numbers not measured yet (logging snippet still on this build).
 
 ## Conclusion
 
-(to fill)
+**Success — on both power paths, user-confirmed.**
+
+- **Battery:** the rail cuts after 60 s without a key or a nudge (verified with
+  a DC voltmeter at the trackpoint rail) and any right-half key brings it back
+  with a usable pointer. No jumps or drift reported in a day of use.
+- **USB:** with VBUS present the rail stays on regardless of the idle timer;
+  unplugging falls back to the activity state. Tested with and without the
+  cable.
+- **Sleep:** the pin-isolation half of the policy (rail low, CLK/DAT
+  `GPIO_DISCONNECTED`) runs on both the idle and the sleep transition, and that
+  pin state survives into System OFF — so the ~4 %/night pull-up leak the
+  battery history exposed is addressed by the same routine.
+
+What the experiment cost: one small module (`tp_power_policy.c`), two hooks in
+the input driver, no changes to the decode path, and one retracted hypothesis
+(the trackpoint does not stream at idle, so the CLK-interrupt rate was never a
+cost).
+
+What it does **not** prove: the battery gain. The logging snippet is still on
+this build and nobody has measured a night or a workday since the policy went
+in. The behavioural evidence is solid; the energy evidence is still pending.
+
+Known, accepted limits: the wake source is the right half's own keys (left-half
+typing does not re-arm it), and the first nudge after a pause is lost by
+design.
 
 ## Next
 
+- **Measure it:** strip `zmk-usb-logging` from `dabase_v2_right-ps2-direct`,
+  reflash, then 3 nights + 2 workdays of battery-center history. Targets: night
+  ~4.4 % → ~1 %, day ~12.8 % → ≤5 %/day.
+- Cross-half wake via the dongle (split run-behavior) if the right-half-only
+  wake source proves annoying in daily use.
 - If the day number disappoints: pointer-only idle (Y) instead of any-activity,
   accepting flap, or a presence sensor on the stick.
-- Cross-half wake via the dongle (split run-behavior) if the right-half-only
-  wake source proves annoying.
