@@ -22,10 +22,13 @@ A `ps_gaming` keymap layer (index 5) with PlayStation-style bindings can be togg
 
 ## Status
 
-In progress — layer + combo + joystick foundation implemented. **Build: all 8 green** (GH run 42689885089, 3m18s). Layer-gated stick forwarding pending (input listeners aren't natively layer-gated; trackpoint is on right-half peripheral, joystick HID device is on dongle central — data must cross BLE split).
+In progress — **Build: all 8 green** (GH run 42694899106, 2m15s). `ps_gaming` layer fixed to use `&joystick_kp <N>` gamepad buttons instead of `&kp` keyboard keys — controllertest.io will now show gamepad buttons (BTN_0..BTN_7) instead of arrows/letters. 8-button joystick limit: △/○/✕/□/L1/R1/L2/R2 mapped; PS/L3/R3/Select/Start/dpad left as `&trans`.
+
+**Still pending:**
+1. Joystick HID device tree on dongle (USB gamepad device must emit reports to host) — verify buttons show on controllertest.io after flashing
+2. Trackpoint → joystick axis forwarding (right half: input-listener + input-processor-fwd-to-hid-joystick, writing d_x/d_y axes)
+3. Layer-gate stick to layer 5 only
 
 ## Next
 
-1. Add joystick input-processor + input-listener device tree to wire trackpoint→right-stick (right half overlay + dongle overlay for the HID device).
-2. Solve layer-5 gating so stick is active only on `ps_gaming` (custom layer-aware processor or listener enable/disable tied to layer state).
-3. Flash right half + dongle, verify stick works only on layer 5.
+Flash new dongle + right half firmware (GH run 42694899106), test buttons on controllertest.io. If buttons show, proceed to axis forwarding.
