@@ -22,8 +22,10 @@ A `ps_gaming` keymap layer (index 5) with PlayStation-style bindings can be togg
 
 ## Status
 
-In progress — layer + combo + joystick foundation implemented; layer-gated stick forwarding pending.
+In progress — layer + combo + joystick foundation implemented. **Build: all 8 green** (GH run 42689885089, 3m18s). Layer-gated stick forwarding pending (input listeners aren't natively layer-gated; trackpoint is on right-half peripheral, joystick HID device is on dongle central — data must cross BLE split).
 
 ## Next
 
-Build & flash, then solve the layer-gating for trackpoint→right-stick.
+1. Add joystick input-processor + input-listener device tree to wire trackpoint→right-stick (right half overlay + dongle overlay for the HID device).
+2. Solve layer-5 gating so stick is active only on `ps_gaming` (custom layer-aware processor or listener enable/disable tied to layer state).
+3. Flash right half + dongle, verify stick works only on layer 5.
